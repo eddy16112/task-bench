@@ -20,10 +20,17 @@
 
 #include <string>
 #include <vector>
+#include <map>
 
 typedef dependence_type_t DependenceType;
 
 typedef kernel_type_t KernelType;
+
+struct DependencyList {
+  std::map<long, std::vector<long>> dep_map;
+  std::map<long, std::vector<long>> reverse_dep_map;
+  std::map<long, long> test_map;
+};
 
 struct TaskGraph;
 
@@ -69,7 +76,12 @@ struct TaskGraph : public task_graph_t {
                      const char **input_ptr, const size_t *input_bytes,
                      size_t n_inputs,
                      char *scratch_ptr, size_t scratch_bytes) const;
+  
+  bool load_task_graph_from_file(char* file_name);
+  
   static void prepare_scratch(char *scratch_ptr, size_t scratch_bytes);
+  
+  DependencyList dep_list;
 };
 
 struct App {
@@ -85,7 +97,7 @@ struct App {
 
 // Make sure core types are POD
 static_assert(std::is_pod<Kernel>::value, "Kernel must be POD");
-static_assert(std::is_pod<TaskGraph>::value, "TaskGraph must be POD");
+//static_assert(std::is_pod<TaskGraph>::value, "TaskGraph must be POD");
 
 long long count_flops_per_task(const TaskGraph &g, long timestep, long point);
 long long count_bytes_per_task(const TaskGraph &g, long timestep, long point);

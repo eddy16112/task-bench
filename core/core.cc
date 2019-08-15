@@ -24,6 +24,8 @@
 #include <set>
 #include <string>
 #include <math.h>
+#include <fstream>
+#include <sstream>
 
 #include "core.h"
 #include "core_kernel.h"
@@ -122,6 +124,7 @@ static const std::map<std::string, DependenceType> dtype_by_name = {
   {"spread", DependenceType::SPREAD},
   {"random_nearest", DependenceType::RANDOM_NEAREST},
   {"random_spread", DependenceType::RANDOM_SPREAD},
+  {"matrix", DependenceType::MATRIX},
 };
 
 static std::map<DependenceType, std::string> make_name_by_dtype()
@@ -162,6 +165,8 @@ long TaskGraph::offset_at_timestep(long timestep) const
   case DependenceType::RANDOM_NEAREST:
   case DependenceType::RANDOM_SPREAD:
     return 0;
+  case DependenceType::MATRIX:
+    return 0;
   default:
     assert(false && "unexpected dependence type");
   };
@@ -191,6 +196,8 @@ long TaskGraph::width_at_timestep(long timestep) const
   case DependenceType::RANDOM_NEAREST:
   case DependenceType::RANDOM_SPREAD:
     return max_width;
+  case DependenceType::MATRIX:
+    return max_width; 
   default:
     assert(false && "unexpected dependence type");
   };
@@ -215,6 +222,8 @@ long TaskGraph::max_dependence_sets() const
   case DependenceType::RANDOM_NEAREST:
   case DependenceType::RANDOM_SPREAD:
     return period;
+  case DependenceType::MATRIX:
+    return timesteps;
   default:
     assert(false && "unexpected dependence type");
   };
@@ -246,6 +255,8 @@ long TaskGraph::dependence_set_at_timestep(long timestep) const
   case DependenceType::RANDOM_NEAREST:
   case DependenceType::RANDOM_SPREAD:
     return timestep % max_dependence_sets();
+  case DependenceType::MATRIX:
+    return timestep;
   default:
     assert(false && "unexpected dependence type");
   };
@@ -363,6 +374,31 @@ size_t TaskGraph::reverse_dependencies(long dset, long point, std::pair<long, lo
       }
       return idx;
     }
+  case DependenceType::MATRIX:
+    {
+      // the first timestep return 0
+      if (dset == 0) {
+        //deps[0] = std::pair<long, long>(point, point);
+        return 0;
+      } else {
+        // other timesteps
+        long task_id = point + (dset-1) * max_width;
+        int i = 0;
+        std::map<long, std::vector<long>>::const_iterator reverse_dep_map_it;
+        reverse_dep_map_it = dep_list.reverse_dep_map.find(task_id);
+        if (reverse_dep_map_it == dep_list.reverse_dep_map.end()) {
+          printf("reverse task id %ld\n", task_id);
+         // assert(false && "reverse can not find task");
+          return 0;
+        }
+        std::vector<long>::const_iterator it;
+        for (it = (reverse_dep_map_it->second).begin(); it != (reverse_dep_map_it->second).end(); it++, i++) {
+          long point_id = (*it) % max_width;
+          deps[i] = std::pair<long, long>(point_id, point_id);
+        }
+        return i;
+      }
+    }
     break;
   default:
     assert(false && "unexpected dependence type");
@@ -393,6 +429,25 @@ size_t TaskGraph::num_reverse_dependencies(long dset, long point) const
   case DependenceType::SPREAD:
   case DependenceType::RANDOM_NEAREST:
     return radix;
+  case DependenceType::MATRIX:
+    {
+      // the last timestep return itself
+      if (dset == 0) {
+        return 0;
+      } else {
+        // other timesteps
+        long task_id = point + (dset-1) * max_width;
+        int i = 0;
+        std::map<long, std::vector<long>>::const_iterator reverse_dep_map_it;
+        reverse_dep_map_it = dep_list.reverse_dep_map.find(task_id);
+        if (reverse_dep_map_it == dep_list.reverse_dep_map.end()) {
+          printf("reverse task id %ld\n", task_id);
+         // assert(false && "reverse can not find task");
+          return 0;
+        }
+        return (reverse_dep_map_it->second).size();
+      }
+    }
   default:
     assert(false && "unexpected dependence type");
   };
@@ -504,6 +559,31 @@ size_t TaskGraph::dependencies(long dset, long point, std::pair<long, long> *dep
       }
       return idx;
     }
+  case DependenceType::MATRIX:
+    {
+      // the first timestep return itself
+      if (dset == 0) {
+       // deps[0] = std::pair<long, long>(point, point);
+        return 0;
+      } else {
+        // other timesteps
+        long task_id = point + dset * max_width;
+        int i = 0;
+        std::map<long, std::vector<long>>::const_iterator dep_map_it;
+        dep_map_it = dep_list.dep_map.find(task_id);
+        if (dep_map_it == dep_list.dep_map.end()) {
+          printf("task id %ld\n", task_id);
+         // assert(false && "can not find task");
+          return 0;
+        }
+        std::vector<long>::const_iterator it;
+        for (it = (dep_map_it->second).begin(); it != (dep_map_it->second).end(); it++, i++) {
+          long point_id = (*it) % max_width;
+          deps[i] = std::pair<long, long>(point_id, point_id);
+        }
+        return i;
+      }
+    }
     break;
   default:
     assert(false && "unexpected dependence type");
@@ -536,6 +616,25 @@ size_t TaskGraph::num_dependencies(long dset, long point) const
   case DependenceType::SPREAD:
   case DependenceType::RANDOM_NEAREST:
     return radix;
+  case DependenceType::MATRIX:
+    {
+      // the first timestep return itself
+      if (dset == 0) {
+        return 0;
+      } else {
+        // other timesteps
+        long task_id = point + dset * max_width;
+        int i = 0;
+        std::map<long, std::vector<long>>::const_iterator dep_map_it;
+        dep_map_it = dep_list.dep_map.find(task_id);
+        if (dep_map_it == dep_list.dep_map.end()) {
+          printf("task id %ld\n", task_id);
+        //  assert(false && "can not find task");
+          return 0;
+        }
+        return (dep_map_it->second).size();
+      }
+    }
   default:
     assert(false && "unexpected dependence type");
   };
@@ -619,6 +718,26 @@ void TaskGraph::execute_point(long timestep, long point,
   k.execute(graph_index, timestep, point, scratch_ptr, scratch_bytes);
 }
 
+bool TaskGraph::load_task_graph_from_file(char* file_name)
+{
+  std::ifstream infile(file_name);
+  if (infile.good() == false) {
+    return false;
+  }
+  std::string line;
+  while (std::getline(infile, line))
+  {
+    std::istringstream iss(line);
+    long src, dst;
+    if (!(iss >> src >> dst)) { break; } // error
+    printf("%ld, %ld\n", src, dst);
+    dep_list.dep_map[dst].push_back(src);
+    dep_list.reverse_dep_map[src].push_back(dst);
+  }
+  return true;
+}
+
+
 void TaskGraph::prepare_scratch(char *scratch_ptr, size_t scratch_bytes)
 {
   assert(scratch_bytes % sizeof(uint64_t) == 0);
@@ -671,6 +790,7 @@ static void needs_argument(int i, int argc, const char *flag) {
 
 #define SKIP_GRAPH_VALIDATION_FLAG "-skip-graph-validation"
 #define FIELD_FLAG "-field"
+#define FILE_FLAG "-file"
 
 static void show_help_message(int argc, char **argv) {
   printf("%s: A Task Benchmark\n", argc > 0 ? argv[0] : "task_bench");
@@ -864,6 +984,19 @@ App::App(int argc, char **argv)
       }
       graph.nb_fields = value;
     }
+    
+    if (!strcmp(argv[i], FILE_FLAG)) {
+      needs_argument(i, argc, FILE_FLAG);
+      char* file_name = argv[++i];
+      std::string fname(file_name);
+      bool load_file_result = graph.load_task_graph_from_file(file_name);
+      if (!load_file_result) {
+        fprintf(stderr, "error: Invalid flag \"" FILE_FLAG " %s\" can not find the file\n", file_name);
+        abort();
+      }
+      printf("file_name %s\n", fname.c_str());
+      //graph.nb_fields = value;
+    }
 
     if (!strcmp(argv[i], AND_FLAG)) {
       // Hack: set default value of period for random graph
@@ -939,6 +1072,7 @@ void App::check() const
           for (long dp = dep.first; dp <= dep.second; ++dp) {
             assert(materialized_deps[point].count(dp) == 0); // No duplicates
             materialized_deps[point].insert(dp);
+        //    printf("point %d, dp %d\n", point, dp);
           }
         }
       }
@@ -948,6 +1082,7 @@ void App::check() const
         auto rdeps = g.reverse_dependencies(dset, point);
         for (auto rdep : rdeps) {
           for (long rdp = rdep.first; rdp <= rdep.second; ++rdp) {
+          //  printf("rdp %d, point %d\n", rdp, point);
             assert(materialized_deps[rdp].count(point) == 1);
           }
         }
@@ -955,6 +1090,8 @@ void App::check() const
     }
   }
 }
+
+#define EXTRA_VERBOSE
 
 void App::display() const
 {
