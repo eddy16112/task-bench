@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
   }
 
   double elapsed_time = 0.0;
-  for (int iter = 0; iter < 2; ++iter) {
+  for (int iter = 0; iter < 1; ++iter) {
     MPI_Barrier(MPI_COMM_WORLD);
 
     double start_time = MPI_Wtime();
@@ -154,6 +154,7 @@ int main(int argc, char *argv[])
             for (auto interval : point_deps) {
               for (long dep = interval.first; dep <= interval.second; ++dep) {
                 if (dep < last_offset || dep >= last_offset + last_width) {
+               //   printf("point %d, timestep %d, con\n", point, timestep);
                   continue;
                 }
 
@@ -170,6 +171,7 @@ int main(int argc, char *argv[])
                             point_inputs[point_n_inputs].size(), MPI_BYTE,
                             rank_by_point[dep], tag, MPI_COMM_WORLD, &req);
                   requests.push_back(req);
+                  printf("point %d, timestep %d, recv from %d\n", point, timestep, rank_by_point[dep]);
                 }
                 point_n_inputs++;
               }
@@ -191,6 +193,7 @@ int main(int argc, char *argv[])
                 MPI_Isend(point_output.data(), point_output.size(), MPI_BYTE,
                           rank_by_point[dep], tag, MPI_COMM_WORLD, &req);
                 requests.push_back(req);
+                printf("point %d, timestep %d, send to %d\n", point, timestep, rank_by_point[dep]);
               }
             }
           }
@@ -205,6 +208,8 @@ int main(int argc, char *argv[])
           auto &point_input_bytes = input_bytes[point_index];
           auto &point_n_inputs = n_inputs[point_index];
           auto &point_output = outputs[point_index];
+          
+          //printf("execute point %d, timestep %d\n", point, timestep);
 
           graph.execute_point(timestep, point,
                               point_output.data(), point_output.size(),

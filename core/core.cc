@@ -431,7 +431,7 @@ size_t TaskGraph::num_reverse_dependencies(long dset, long point) const
     return radix;
   case DependenceType::MATRIX:
     {
-      // the last timestep return itself
+      // the first timestep return 0
       if (dset == 0) {
         return 0;
       } else {
@@ -561,7 +561,7 @@ size_t TaskGraph::dependencies(long dset, long point, std::pair<long, long> *dep
     }
   case DependenceType::MATRIX:
     {
-      // the first timestep return itself
+      // the first timestep return 0
       if (dset == 0) {
        // deps[0] = std::pair<long, long>(point, point);
         return 0;
@@ -618,7 +618,7 @@ size_t TaskGraph::num_dependencies(long dset, long point) const
     return radix;
   case DependenceType::MATRIX:
     {
-      // the first timestep return itself
+      // the first timestep return 0
       if (dset == 0) {
         return 0;
       } else {

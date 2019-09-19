@@ -18,6 +18,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <map>
+#include <unistd.h>
 
 #include "core.h"
 #include "mpi.h"
@@ -60,6 +61,8 @@ int main(int argc, char *argv[])
   MPI_Comm_size(MPI_COMM_WORLD, &numtasks);
   MPI_Comm_rank(MPI_COMM_WORLD, &taskid);
 
+  printf("rank %d, pid %ld\n", taskid, getpid());
+ // sleep(20);
   App new_app(argc, argv);
   if (taskid == MASTER) new_app.display();
 
@@ -110,7 +113,7 @@ int main(int argc, char *argv[])
   }
 
   double total_time_elapsed = 0.0;
-  for (int iter = 0; iter < NUM_ITER + 1; iter++) {
+  for (int iter = 0; iter < NUM_ITER + 0; iter++) {
     MPI_Barrier(MPI_COMM_WORLD);
     Timer::time_start();
 
@@ -124,52 +127,62 @@ int main(int argc, char *argv[])
       TaskGraph::prepare_scratch(scratch_ptr, scratch_bytes);
 
       for (long timestep = 0L; timestep < graph.timesteps; timestep += 1) {
-        long old_dset = graph.dependence_set_at_timestep(timestep);
-        long dset = graph.dependence_set_at_timestep(timestep + 1);
-        int num_inputs = graph_num_inputs[i][old_dset];
+        long dset = graph.dependence_set_at_timestep(timestep);
+        int num_inputs = graph_num_inputs[i][dset];
+        
+        long offset = graph.offset_at_timestep(timestep);
+        long width = graph.width_at_timestep(timestep);
 
-        if (taskid < graph.width_at_timestep(timestep) +
-                         graph.offset_at_timestep(timestep) &&
-            taskid >= graph.offset_at_timestep(timestep)) {
-          graph.execute_point(timestep, taskid, output_ptr, output_bytes,
-                              (const char **)graph_all_data[i][old_dset].data(),
-                              graph_input_bytes[i][old_dset].data(),
-                              num_inputs,
-                              scratch_ptr, scratch_bytes);
+        long last_offset = graph.offset_at_timestep(timestep-1);
+        long last_width = graph.width_at_timestep(timestep-1);
+
+        if (taskid >= last_offset && taskid < last_offset + last_width) {
+                              
+         // printf("execute point %d, timestep %d\n", taskid, timestep);  
+                            
 
           /* Sends */
           /* Only send if you are in the current timestep of the graph */
           for (std::pair<long, long> interval : graph_rev_deps[i][dset]) {
-            for (long inter = interval.first; inter <= interval.second;
-                 inter++) {
-              if (inter >= graph.width_at_timestep(timestep + 1) +
-                               graph.offset_at_timestep(timestep + 1) ||
-                  inter < graph.offset_at_timestep(timestep + 1))
+            for (long inter = interval.first; inter <= interval.second; inter++) {
+              if (inter < offset || inter >= offset + width ) {
                 continue;
+              }
               MPI_Send(output_ptr, output_bytes, MPI_BYTE, (int)inter, 0,
                        MPI_COMM_WORLD);
+              if (inter != taskid) {
+                printf("point %d, timestep %d, send to %d\n", taskid, timestep, inter);
+              }
             }
           }
         }
 
         /* Receives */
         /* Only receive if you are in the next timestep of the graph */
-        if (taskid < graph.width_at_timestep(timestep + 1) +
-                         graph.offset_at_timestep(timestep + 1) &&
-            taskid >= graph.offset_at_timestep(timestep + 1)) {
+        if (taskid >= offset && taskid < offset + width) {
           int idx = 0;
           for (std::pair<long, long> interval : graph_dependencies[i][dset]) {
-            for (long inter = interval.first; inter <= interval.second;
-                 inter++) {
-              if (inter >= graph.width_at_timestep(timestep) +
-                               graph.offset_at_timestep(timestep) ||
-                  inter < graph.offset_at_timestep(timestep))
+            for (long inter = interval.first; inter <= interval.second; inter++) {
+              if (inter < last_offset || inter >= last_offset + last_width) {
                 continue;
+              }
               MPI_Recv(graph_all_data[i][dset][idx], output_bytes, MPI_BYTE,
                        (int)inter, 0, MPI_COMM_WORLD, &status);
               idx++;
+              if (inter != taskid) {
+                printf("point %d, timestep %d, recv from %d\n", taskid, timestep, inter);
+              }
             }
           }
+        }
+        
+        if (taskid >= offset && taskid < offset + width) {
+          //printf("execute point %d, timestep %d\n", taskid, timestep);
+          graph.execute_point(timestep, taskid, output_ptr, output_bytes,
+                              (const char **)graph_all_data[i][dset].data(),
+                              graph_input_bytes[i][dset].data(),
+                              num_inputs,
+                              scratch_ptr, scratch_bytes);
         }
       }
 
