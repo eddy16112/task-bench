@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
   }
 
   double total_time_elapsed = 0.0;
-  for (int iter = 0; iter < NUM_ITER + 0; iter++) {
+  for (int iter = 0; iter < NUM_ITER + 1; iter++) {
     MPI_Barrier(MPI_COMM_WORLD);
     Timer::time_start();
 
