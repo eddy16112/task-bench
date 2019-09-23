@@ -384,14 +384,14 @@ size_t TaskGraph::reverse_dependencies(long dset, long point, std::pair<long, lo
         // other timesteps
         long task_id = point + (dset-1) * max_width;
         int i = 0;
-        std::map<long, std::vector<long>>::const_iterator reverse_dep_map_it;
+        std::map<long, std::set<long>>::const_iterator reverse_dep_map_it;
         reverse_dep_map_it = dep_list.reverse_dep_map.find(task_id);
         if (reverse_dep_map_it == dep_list.reverse_dep_map.end()) {
           printf("reverse task id %ld\n", task_id);
          // assert(false && "reverse can not find task");
           return 0;
         }
-        std::vector<long>::const_iterator it;
+        std::set<long>::const_iterator it;
         for (it = (reverse_dep_map_it->second).begin(); it != (reverse_dep_map_it->second).end(); it++, i++) {
           long point_id = (*it) % max_width;
           deps[i] = std::pair<long, long>(point_id, point_id);
@@ -438,7 +438,7 @@ size_t TaskGraph::num_reverse_dependencies(long dset, long point) const
         // other timesteps
         long task_id = point + (dset-1) * max_width;
         int i = 0;
-        std::map<long, std::vector<long>>::const_iterator reverse_dep_map_it;
+        std::map<long, std::set<long>>::const_iterator reverse_dep_map_it;
         reverse_dep_map_it = dep_list.reverse_dep_map.find(task_id);
         if (reverse_dep_map_it == dep_list.reverse_dep_map.end()) {
           printf("reverse task id %ld\n", task_id);
@@ -569,14 +569,14 @@ size_t TaskGraph::dependencies(long dset, long point, std::pair<long, long> *dep
         // other timesteps
         long task_id = point + dset * max_width;
         int i = 0;
-        std::map<long, std::vector<long>>::const_iterator dep_map_it;
+        std::map<long, std::set<long>>::const_iterator dep_map_it;
         dep_map_it = dep_list.dep_map.find(task_id);
         if (dep_map_it == dep_list.dep_map.end()) {
           printf("task id %ld\n", task_id);
          // assert(false && "can not find task");
           return 0;
         }
-        std::vector<long>::const_iterator it;
+        std::set<long>::const_iterator it;
         for (it = (dep_map_it->second).begin(); it != (dep_map_it->second).end(); it++, i++) {
           long point_id = (*it) % max_width;
           deps[i] = std::pair<long, long>(point_id, point_id);
@@ -625,7 +625,7 @@ size_t TaskGraph::num_dependencies(long dset, long point) const
         // other timesteps
         long task_id = point + dset * max_width;
         int i = 0;
-        std::map<long, std::vector<long>>::const_iterator dep_map_it;
+        std::map<long, std::set<long>>::const_iterator dep_map_it;
         dep_map_it = dep_list.dep_map.find(task_id);
         if (dep_map_it == dep_list.dep_map.end()) {
           printf("task id %ld\n", task_id);
@@ -731,8 +731,8 @@ bool TaskGraph::load_task_graph_from_file(char* file_name)
     long src, dst;
     if (!(iss >> src >> dst)) { break; } // error
     printf("%ld, %ld\n", src, dst);
-    dep_list.dep_map[dst].push_back(src);
-    dep_list.reverse_dep_map[src].push_back(dst);
+    dep_list.dep_map[dst].insert(src);
+    dep_list.reverse_dep_map[src].insert(dst);
   }
   return true;
 }

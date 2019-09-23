@@ -20,6 +20,7 @@
 
 #include <string>
 #include <vector>
+#include <set>
 #include <map>
 
 typedef dependence_type_t DependenceType;
@@ -27,9 +28,8 @@ typedef dependence_type_t DependenceType;
 typedef kernel_type_t KernelType;
 
 struct DependencyList {
-  std::map<long, std::vector<long>> dep_map;
-  std::map<long, std::vector<long>> reverse_dep_map;
-  std::map<long, long> test_map;
+  std::map<long, std::set<long>> dep_map;
+  std::map<long, std::set<long>> reverse_dep_map;
 };
 
 struct TaskGraph;
