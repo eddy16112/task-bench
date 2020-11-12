@@ -1,4 +1,4 @@
-/* Copyright 2019 Stanford University
+/* Copyright 2020 Stanford University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,12 +23,22 @@
 
 using namespace tensorflow;
 
-REGISTER_OP("TaskBenchOp")
+REGISTER_OP("ExecutePointOp")
     .Attr("n_inputs: int >= 0")
     .Input("task_graph: uint8")
     .Input("timestep: int32")
     .Input("point: int32")
+    .Input("output_in: uint8")
+    .Input("scratch_in: uint8")
     .Input("inputs: n_inputs * uint8")
-    .Output("output: uint8");
+    .Output("output: uint8")
+    .Output("scratch: uint8");
 
-REGISTER_KERNEL_BUILDER(Name("TaskBenchOp").Device(DEVICE_CPU), TaskBenchOp)
+REGISTER_KERNEL_BUILDER(Name("ExecutePointOp").Device(DEVICE_CPU), ExecutePointOp)
+
+REGISTER_OP("PrepareScratchOp")
+    .Input("task_graph: uint8")
+    .Input("dummy_in: uint8")
+    .Output("scratch: uint8");
+
+REGISTER_KERNEL_BUILDER(Name("PrepareScratchOp").Device(DEVICE_CPU), PrepareScratchOp)

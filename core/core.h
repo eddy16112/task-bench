@@ -1,4 +1,4 @@
-/* Copyright 2019 Stanford University
+/* Copyright 2020 Stanford University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ struct TaskGraph : public task_graph_t {
 
 struct App {
   std::vector<TaskGraph> graphs;
-  bool verbose;
+  int verbose;
   bool enable_graph_validation;
 
   App(int argc, char **argv);

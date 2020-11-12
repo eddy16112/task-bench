@@ -19,6 +19,11 @@ else
 fi
 THREADS=${THREADS:-$DEFAULT_THREADS}
 
+# On Cray machines, default to static build. (Cori switched this
+# default from static to dynamic in the January 2020 maintenance
+# cycle, but we want to stick with static builds.)
+export CRAYPE_LINK_TYPE=static
+
 make -C core clean
 make -C core -j$THREADS
 
@@ -64,16 +69,18 @@ if [[ $TASKBENCH_USE_HWLOC -eq 1 ]]; then
 fi
 
 (
-if [[ -n $TRAVIS ]]; then
-  if [[ "$(uname)" = "Linux" && "$CXX" = "g++"* ]]; then
-      export CXX="g++-4.9" CC="gcc-4.9"
-  fi
-fi
 if [[ -n $CRAYPE_VERSION ]]; then
     export HOST_CC=gcc HOST_CXX=g++
 fi
+if [[ $USE_PYGION -eq 1 ]]; then
+    source "$PYGION_DIR"/env.sh
+fi
 if [[ $USE_LEGION -eq 1 ]]; then
     make -C legion clean
+fi
+if [[ $USE_PYGION -eq 1 ]]; then
+    make -C "$LEGION_DIR"/bindings/python clean
+    make -C pygion clean
 fi
 if [[ $USE_REGENT -eq 1 ]]; then
     SHARD_SIZE=30 make -C regent clean
@@ -99,9 +106,9 @@ if [[ $USE_REGENT -eq 1 ]]; then
         fi
         unset LG_RT_DIR
         if [[ -z $TRAVIS ]]; then
-            ./scripts/setup_env.py --terra-url https://github.com/StanfordLegion/terra.git --terra-branch luajit2.1 --llvm-version=38
+            ./scripts/setup_env.py --terra-url https://github.com/StanfordLegion/terra.git --terra-branch luajit2.1 --llvm-version=38 --terra-cmake -j$THREADS
         else
-            LLVM_CONFIG=llvm-config-3.5 ./install.py --terra-url https://github.com/StanfordLegion/terra.git --terra-branch luajit2.1 --rdir=auto
+            ./install.py --terra-url https://github.com/StanfordLegion/terra.git --terra-branch luajit2.1 --rdir=auto
         fi
     )
     popd
@@ -109,13 +116,20 @@ if [[ $USE_REGENT -eq 1 ]]; then
         if [[ -n $CRAYPE_VERSION ]]; then
             export CC=gcc CXX=g++
         fi
-        SHARD_SIZE=30 make -C regent -j$THREADS
-        SHARD_SIZE=15 make -C regent -j$THREADS
-        SHARD_SIZE=14 make -C regent -j$THREADS
+        SHARD_SIZE=30 make -C regent -j$THREADS &
+        sleep 1
+        SHARD_SIZE=15 make -C regent -j$THREADS &
+        sleep 1
+        SHARD_SIZE=14 make -C regent -j$THREADS &
+        wait
     )
 fi
 if [[ $USE_LEGION -eq 1 ]]; then
     make -C legion -j$THREADS
+fi
+if [[ $USE_PYGION -eq 1 ]]; then
+    make -C "$LEGION_DIR"/bindings/python -j$THREADS
+    make -C pygion -j$THREADS
 fi
 if [[ $USE_REALM -eq 1 ]]; then
     make -C realm -j$THREADS
@@ -125,7 +139,7 @@ fi
 )
 
 if [[ $USE_STARPU -eq 1 ]]; then
-    STARPU_CONFIGURE_FLAG="--disable-cuda --disable-opencl --disable-fortran --disable-build-tests --disable-build-examples "
+    STARPU_CONFIGURE_FLAG="--disable-cuda --disable-opencl --disable-fortran --disable-build-tests --disable-build-examples --disable-mlr --disable-hdf5"
     if [[ $TASKBENCH_USE_HWLOC -eq 1 ]]; then
       STARPU_CONFIGURE_FLAG+=""
     else
@@ -144,9 +158,9 @@ if [[ $USE_PARSEC -eq 1 ]]; then
     mkdir -p "$PARSEC_DIR"
     pushd "$PARSEC_DIR"
     if [[ $TASKBENCH_USE_HWLOC -eq 1 ]]; then
-      ../contrib/platforms/config.linux -DPARSEC_GPU_WITH_CUDA=OFF -DCMAKE_INSTALL_PREFIX=$PWD -DHWLOC_DIR=$HWLOC_DIR
+      ../configure --prefix=$PWD --with-mpi --with-hwloc=$HWLOC_DIR --disable-debug
     else
-      ../contrib/platforms/config.linux -DPARSEC_GPU_WITH_CUDA=OFF -DCMAKE_INSTALL_PREFIX=$PWD
+      ../configure --prefix=$PWD --with-mpi --disable-debug --with-cuda=no
     fi
     make -j$THREADS
     make install
@@ -239,6 +253,34 @@ if [[ $USE_OMPSS -eq 1 ]]; then
     export LD_LIBRARY_PATH=$NANOS_PREFIX/lib:$MERCURIUM_PREFIX/lib:$LD_LIBRARY_PATH
     make -C ompss clean
     make -C ompss -j$THREADS
+fi
+
+if [[ $USE_OMPSS2 -eq 1 ]]; then
+    # pushd "$BOOST_SRC_DIR"
+    # ./bootstrap.sh --prefix=$OMPSS2_TARGET
+    # ./b2 install
+    # popd
+
+    pushd "$OMPSS2_NANOS6_SRC_DIR"
+    autoreconf -fiv
+    mkdir -p build
+    cd build
+    PKG_CONFIG_PATH=$HWLOC_DIR/lib/pkgconfig ../configure --prefix=$OMPSS2_TARGET --with-boost=/usr
+    make all -j$THREADS
+    make install -j$THREADS
+    popd
+    
+    pushd "$OMPSS2_MCXX_SRC_DIR"
+    autoreconf -fiv
+    mkdir -p build
+    cd build
+    ../configure --prefix=$OMPSS2_TARGET --enable-ompss-2 --with-nanos6=$OMPSS2_TARGET
+    make -j$THREADS
+    make install
+    popd
+
+    make -C ompss2 clean
+    make -C ompss2 -j$THREADS
 fi
 
 (if [[ $USE_SPARK -eq 1 ]]; then
