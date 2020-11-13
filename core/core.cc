@@ -25,6 +25,7 @@
 #include <string>
 #include <math.h>
 
+#include "timer.h"
 #include "core.h"
 #include "core_kernel.h"
 #include "core_random.h"
@@ -1035,6 +1036,86 @@ void App::display() const
       }
     }
   }
+}
+
+void App::output_task_graph()
+{  
+  printf("Running Task Benchmark\n");
+  printf("  Configuration:\n");
+  assert(graphs.size() == 1);
+  TaskGraph &g = graphs[0];
+  
+  // calculate number of total tasks
+  long long total_num_tasks = 0;
+  for (long t = 0; t < g.timesteps; ++t) {
+    long width = g.width_at_timestep(t);
+    total_num_tasks += width;
+  }
+  
+  // output meta data
+  printf("nb_cores %d\n", nb_cores);
+  printf("nb_nodes %d\n", nb_nodes);
+  printf("width %ld\n", g.max_width);
+  printf("timesteps %ld\n", g.timesteps);
+  printf("total tasks %lld\n", total_num_tasks);
+  time_task();
+  printf("====\n");
+  
+  // output tasks
+  long src_task_id = 0;
+  long dst_task_id = 0;
+  for (long t = 0; t < g.timesteps; ++t) {
+    long offset = g.offset_at_timestep(t);
+    long width = g.width_at_timestep(t);
+    total_num_tasks += width;
+    for (long p = offset; p < offset + width; ++p) {
+      long src_task_id = t * g.max_width + p;
+      printf("%ld %f\n", src_task_id, task_exec_time);
+    }
+  }
+  printf("====\n");
+  
+  //output edges
+  for (long t = 0; t < g.timesteps; ++t) {
+    long offset = g.offset_at_timestep(t);
+    long width = g.width_at_timestep(t);
+
+    long last_offset = g.offset_at_timestep(t-1);
+    long last_width = g.width_at_timestep(t-1);
+
+    long dset = g.dependence_set_at_timestep(t);
+    for (long p = offset; p < offset + width; ++p) {
+      long src_task_id = (t-1) * g.max_width + p;
+      auto deps = g.dependencies(dset, p);
+      for (auto dep : deps) {
+        for (long dp = dep.first; dp <= dep.second; ++dp) {
+          if (dp >= last_offset && dp < last_offset + last_width) {
+            long dst_task_id =  t * g.max_width + dp;
+            printf("%ld %ld %ld\n", src_task_id, dst_task_id, g.output_bytes_per_task);
+          
+          }
+        }
+      }
+    }
+  }
+}
+
+void App::time_task()
+{
+  TaskGraph &graph = graphs[0];
+  std::vector<char> output_buff;
+  std::vector<char> scratch_buff;
+  output_buff.reserve(graph.output_bytes_per_task);
+  scratch_buff.reserve(graph.scratch_bytes_per_task);
+  for (int i = 0; i < 10; i++) {
+    graph.execute_point(0, 0, output_buff.data(), graph.output_bytes_per_task, NULL, NULL, 0, scratch_buff.data(), graph.scratch_bytes_per_task);
+  }
+  Timer::time_start();
+  for (int i = 0; i < 10; i++) {
+    graph.execute_point(0, 0, output_buff.data(), graph.output_bytes_per_task, NULL, NULL, 0, scratch_buff.data(), graph.scratch_bytes_per_task);
+  }
+  double elapsed1 = Timer::time_end();
+  task_exec_time = elapsed1/10.0f;
 }
 
 // IMPORTANT: Keep this up-to-date with kernel implementations
