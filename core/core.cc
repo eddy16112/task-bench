@@ -23,6 +23,8 @@
 #include <map>
 #include <set>
 #include <string>
+#include <iostream>
+#include <fstream>
 #include <math.h>
 
 #include "timer.h"
@@ -672,6 +674,7 @@ static void needs_argument(int i, int argc, const char *flag) {
 
 #define SKIP_GRAPH_VALIDATION_FLAG "-skip-graph-validation"
 #define FIELD_FLAG "-field"
+#define OUTPUT_FILE_FLAG "-output-file"
 
 static void show_help_message(int argc, char **argv) {
   printf("%s: A Task Benchmark\n", argc > 0 ? argv[0] : "task_bench");
@@ -870,6 +873,12 @@ App::App(int argc, char **argv)
       }
       graph.nb_fields = value;
     }
+    
+    if (!strcmp(argv[i], OUTPUT_FILE_FLAG)) {
+      needs_argument(i, argc, OUTPUT_FILE_FLAG);
+      char* fname = argv[++i];
+      strcpy(graph.output_filename, fname);
+    }
 
     if (!strcmp(argv[i], AND_FLAG)) {
       // Hack: set default value of period for random graph
@@ -1040,10 +1049,12 @@ void App::display() const
 
 void App::output_task_graph()
 {  
-  printf("Running Task Benchmark\n");
-  printf("  Configuration:\n");
+  printf("Task Benchmark configuration\n");
   assert(graphs.size() == 1);
   TaskGraph &g = graphs[0];
+  std::string fname(g.output_filename);
+  std::ofstream myfile;
+  myfile.open(fname);
   
   // calculate number of total tasks
   long long total_num_tasks = 0;
@@ -1053,27 +1064,37 @@ void App::output_task_graph()
   }
   
   // output meta data
-  printf("nb_cores %d\n", nb_cores);
-  printf("nb_nodes %d\n", nb_nodes);
-  printf("width %ld\n", g.max_width);
-  printf("timesteps %ld\n", g.timesteps);
-  printf("total tasks %lld\n", total_num_tasks);
-  time_task();
-  printf("====\n");
+  myfile << "nb_cores " << nb_cores << std::endl;
+  myfile << "nb_nodes " << nb_nodes << std::endl;
+  myfile << "width " << g.max_width << std::endl;
+  myfile << "timesteps " << g.timesteps << std::endl;
+  myfile << "iteration " << g.kernel.iterations << std::endl;
+  myfile << "nb_tasks " << total_num_tasks << std::endl;
+  myfile << "total_runtime " << total_exec_time << std::endl;
+  myfile << "====\n";
+  // printf("nb_cores %d\n", nb_cores);
+  // printf("nb_nodes %d\n", nb_nodes);
+  // printf("width %ld\n", g.max_width);
+  // printf("timesteps %ld\n", g.timesteps);
+  // printf("total tasks %lld\n", total_num_tasks);
+  // printf("total run time %f seconds\n", total_exec_time);
+  // printf("====\n");
   
   // output tasks
+  time_task();
   long src_task_id = 0;
   long dst_task_id = 0;
   for (long t = 0; t < g.timesteps; ++t) {
     long offset = g.offset_at_timestep(t);
     long width = g.width_at_timestep(t);
-    total_num_tasks += width;
     for (long p = offset; p < offset + width; ++p) {
       long src_task_id = t * g.max_width + p;
-      printf("%ld %f\n", src_task_id, task_exec_time);
+      //printf("%ld %f\n", src_task_id, task_exec_time);
+      myfile << src_task_id << " " << task_exec_time << std::endl;
     }
   }
-  printf("====\n");
+  myfile << "====\n";
+  // printf("====\n");
   
   //output edges
   for (long t = 0; t < g.timesteps; ++t) {
@@ -1091,13 +1112,31 @@ void App::output_task_graph()
         for (long dp = dep.first; dp <= dep.second; ++dp) {
           if (dp >= last_offset && dp < last_offset + last_width) {
             long dst_task_id =  t * g.max_width + dp;
-            printf("%ld %ld %ld\n", src_task_id, dst_task_id, g.output_bytes_per_task);
-          
+            // printf("%ld %ld %ld\n", src_task_id, dst_task_id, g.output_bytes_per_task);
+            myfile << src_task_id << " " << dst_task_id << " " << g.output_bytes_per_task << std::endl;
           }
         }
       }
     }
   }
+  myfile << "====\n";
+  // printf("====\n");
+  
+  //output mapping
+  long mapping_core = 0;
+  for (long t = 0; t < g.timesteps; ++t) {
+    long offset = g.offset_at_timestep(t);
+    long width = g.width_at_timestep(t);
+    for (long p = offset; p < offset + width; ++p) {
+      long src_task_id = t * g.max_width + p;
+      // printf("%ld %ld\n", src_task_id, mapping_core);
+      myfile << src_task_id << " " << mapping_core << std::endl;
+      mapping_core ++;
+      mapping_core = mapping_core % (nb_cores * nb_nodes);
+    }
+  }
+  
+  myfile.close();
 }
 
 void App::time_task()

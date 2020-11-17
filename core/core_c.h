@@ -84,6 +84,7 @@ typedef struct task_graph_t {
   size_t output_bytes_per_task;
   size_t scratch_bytes_per_task;
   int nb_fields;
+  char output_filename[128];
 } task_graph_t;
 
 long task_graph_offset_at_timestep(task_graph_t graph, long timestep);

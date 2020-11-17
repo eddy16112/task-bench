@@ -79,6 +79,7 @@ struct App {
   int nb_cores;
   int nb_nodes;
   double task_exec_time;
+  double total_exec_time;
 
   App(int argc, char **argv);
   void check() const;

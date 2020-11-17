@@ -625,6 +625,8 @@ void LegionApp::run()
   double elapsed = (stop - start) / 1e9;
   if (runtime->get_executing_processor(ctx).address_space() == 0) {
     report_timing(elapsed);
+    total_exec_time = elapsed;
+    output_task_graph();
   }
 }
 
