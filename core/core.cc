@@ -1106,12 +1106,12 @@ void App::output_task_graph()
 
     long dset = g.dependence_set_at_timestep(t);
     for (long p = offset; p < offset + width; ++p) {
-      long src_task_id = (t-1) * g.max_width + p;
+      long dst_task_id = t * g.max_width + p;
       auto deps = g.dependencies(dset, p);
       for (auto dep : deps) {
         for (long dp = dep.first; dp <= dep.second; ++dp) {
           if (dp >= last_offset && dp < last_offset + last_width) {
-            long dst_task_id =  t * g.max_width + dp;
+            long src_task_id =  (t-1) * g.max_width + dp;
             // printf("%ld %ld %ld\n", src_task_id, dst_task_id, g.output_bytes_per_task);
             myfile << src_task_id << " " << dst_task_id << " " << g.output_bytes_per_task << std::endl;
           }

@@ -500,6 +500,15 @@ LegionApp::LegionApp(Runtime *runtime, Context ctx)
       }
       num_fields = value;
     }
+    else if (!strcmp(argv[i], "-cpus")) {
+      assert(i+1 < argc);
+      int value = atoi(argv[++i]);
+      if (value <= 0) {
+        fprintf(stderr, "error: Invalid flag \"-cpus %d\" must be > 0\n", value);
+        abort();
+      }
+      nb_cores = value;
+    }
     else if (!strcmp(argv[i], "-exact")) {
       exact_instance = true;
     }
@@ -625,6 +634,7 @@ void LegionApp::run()
   double elapsed = (stop - start) / 1e9;
   if (runtime->get_executing_processor(ctx).address_space() == 0) {
     report_timing(elapsed);
+    nb_nodes = 1;
     total_exec_time = elapsed;
     output_task_graph();
   }
