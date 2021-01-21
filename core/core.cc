@@ -1066,8 +1066,8 @@ void App::output_task_graph()
     total_num_tasks += width;
   }
   
-  double actual_task_exec_time = double(nb_cores * nb_nodes * total_exec_time) / (double)total_num_tasks;
-  double total_exec_time_estimated = (double)total_num_tasks * actual_task_exec_time / (double)(nb_cores_run * nb_nodes); 
+  //double actual_task_exec_time = double(nb_cores * nb_nodes * total_exec_time) / (double)total_num_tasks;
+  //double total_exec_time_estimated = (double)total_num_tasks * actual_task_exec_time / (double)(nb_cores_run * nb_nodes); 
   // output meta data
   myfile << "nb_cores " << nb_cores << std::endl;
   myfile << "nb_nodes " << nb_nodes << std::endl;
@@ -1075,7 +1075,7 @@ void App::output_task_graph()
   myfile << "timesteps " << g.timesteps << std::endl;
   myfile << "iteration " << g.kernel.iterations << std::endl;
   myfile << "nb_tasks " << total_num_tasks << std::endl;
-  myfile << "total_runtime " << total_exec_time_estimated << std::endl;
+  myfile << "total_runtime " << total_exec_time << std::endl;
   myfile << "====\n";
   // printf("nb_cores %d\n", nb_cores);
   // printf("nb_nodes %d\n", nb_nodes);
@@ -1140,8 +1140,6 @@ void App::output_task_graph()
     }
   }
   
-  myfile << "====\n";
-  myfile << "total_runtime_actual " << total_exec_time << std::endl;
   myfile.close();
 }
 

@@ -36,6 +36,9 @@ enum ShardingFunctorIDs {
   SID_LINEAR = 1,
 };
 
+int cpus = 0;
+int cpus_run = 0;
+
 // In order to avoid spurious WAR dependencies, we round-robin the
 // task output across a set of fields. This is basically
 // double-buffering with an arbitrary factor N. This could technically
@@ -163,8 +166,11 @@ ShardID LinearShardingFunctor::shard(const DomainPoint &point,
 class TaskBenchMapper : public DefaultMapper
 {
 public:
+  int nb_cores;
+  int nb_cores_run;
+public:
   TaskBenchMapper(MapperRuntime *rt, Machine machine, Processor local,
-                  const char *mapper_name);
+                  const char *mapper_name, int cpus, int cpus_run);
   virtual void select_sharding_functor(
                                  const MapperContext                ctx,
                                  const Task&                        task,
@@ -196,9 +202,11 @@ public:
 };
 
 TaskBenchMapper::TaskBenchMapper(MapperRuntime *rt, Machine machine, Processor local,
-                                 const char *mapper_name)
+                                 const char *mapper_name, int cpus, int cpus_run)
   : DefaultMapper(rt, machine, local, mapper_name)
 {
+  nb_cores = cpus;
+  nb_cores_run = cpus_run;
 }
 
 void TaskBenchMapper::select_sharding_functor(
@@ -346,8 +354,10 @@ void TaskBenchMapper::task_bench_slice_task(const Task &task,
   all_procs.only_kind(local[0].kind());
   if ((task.tag & SAME_ADDRESS_SPACE) != 0)
 	all_procs.local_address_space();
+  int cpus_exclude = nb_cores - nb_cores_run;
+  //printf("cpus_exclude %d\n", cpus_exclude);
   // Hack: This is a workaround for buggy code in the default mapper with DCR
-  std::vector<Processor> procs(local.begin(), local.end()); // (all_procs.begin(), all_procs.end());
+  std::vector<Processor> procs(local.begin(), local.end()-cpus_exclude); // (all_procs.begin(), all_procs.end());
 
   switch (input.domain.get_dim())
   {
@@ -404,6 +414,7 @@ void leaf(const Task *task,
           Context ctx, Runtime *runtime)
 {
   log_taskbench.info("Leaf at point %lld", task->index_point[0]);
+  //printf("task proc %d\n", task->current_proc);
 
   assert(task->arglen == sizeof(Payload));
   Payload payload = *reinterpret_cast<Payload *>(task->args);
@@ -784,17 +795,43 @@ void top(const Task *task,
 void update_mappers(Machine machine, Runtime *runtime,
                     const std::set<Processor> &local_procs)
 {
+  printf("cpus %d, cpus run %d\n", cpus, cpus_run);
+  assert(cpus > 0);
+  assert(cpus_run > 0);
+  assert(cpus == local_procs.size());
   for (std::set<Processor>::const_iterator it = local_procs.begin();
         it != local_procs.end(); it++)
   {
     TaskBenchMapper* mapper = new TaskBenchMapper(runtime->get_mapper_runtime(),
-                                                  machine, *it, "task_bench_mapper");
+                                                  machine, *it, "task_bench_mapper", cpus, cpus_run);
     runtime->replace_default_mapper(mapper, *it);
   }
 }
 
 int main(int argc, char **argv)
 {
+  for (int i = 1; i < argc; i++) {
+    if (!strcmp(argv[i], "-cpus")) {
+      assert(i+1 < argc);
+      int value = atoi(argv[++i]);
+      if (value <= 0) {
+        fprintf(stderr, "error: Invalid flag \"-cpus %d\" must be > 0\n", value);
+        abort();
+      }
+      cpus = value;
+    }
+    else if (!strcmp(argv[i], "-cpusrun")) {
+      assert(i+1 < argc);
+      int value = atoi(argv[++i]);
+      if (value <= 0) {
+        fprintf(stderr, "error: Invalid flag \"-cpusrun %d\" must be > 0\n", value);
+        abort();
+      }
+      cpus_run = value;
+    }
+  }
+  assert(cpus > 0);
+  assert(cpus_run > 0);
   
   Runtime::set_top_level_task_id(TID_TOP);
 
