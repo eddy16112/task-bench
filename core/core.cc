@@ -1056,6 +1056,9 @@ void App::output_task_graph()
   std::ofstream myfile;
   myfile.open(fname);
   
+  // get the time of task
+  time_task();
+  
   // calculate number of total tasks
   long long total_num_tasks = 0;
   for (long t = 0; t < g.timesteps; ++t) {
@@ -1063,6 +1066,8 @@ void App::output_task_graph()
     total_num_tasks += width;
   }
   
+  double actual_task_exec_time = double(nb_cores * nb_nodes * total_exec_time) / (double)total_num_tasks;
+  double total_exec_time_estimated = (double)total_num_tasks * actual_task_exec_time / (double)(nb_cores_run * nb_nodes); 
   // output meta data
   myfile << "nb_cores " << nb_cores << std::endl;
   myfile << "nb_nodes " << nb_nodes << std::endl;
@@ -1070,7 +1075,7 @@ void App::output_task_graph()
   myfile << "timesteps " << g.timesteps << std::endl;
   myfile << "iteration " << g.kernel.iterations << std::endl;
   myfile << "nb_tasks " << total_num_tasks << std::endl;
-  myfile << "total_runtime " << total_exec_time << std::endl;
+  myfile << "total_runtime " << total_exec_time_estimated << std::endl;
   myfile << "====\n";
   // printf("nb_cores %d\n", nb_cores);
   // printf("nb_nodes %d\n", nb_nodes);
@@ -1081,7 +1086,6 @@ void App::output_task_graph()
   // printf("====\n");
   
   // output tasks
-  time_task();
   long src_task_id = 0;
   long dst_task_id = 0;
   for (long t = 0; t < g.timesteps; ++t) {
@@ -1132,10 +1136,12 @@ void App::output_task_graph()
       // printf("%ld %ld\n", src_task_id, mapping_core);
       myfile << src_task_id << " " << mapping_core << std::endl;
       mapping_core ++;
-      mapping_core = mapping_core % (nb_cores * nb_nodes);
+      mapping_core = mapping_core % (nb_cores_run * nb_nodes);
     }
   }
   
+  myfile << "====\n";
+  myfile << "total_runtime_actual " << total_exec_time << std::endl;
   myfile.close();
 }
 

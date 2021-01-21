@@ -509,6 +509,15 @@ LegionApp::LegionApp(Runtime *runtime, Context ctx)
       }
       nb_cores = value;
     }
+    else if (!strcmp(argv[i], "-cpusrun")) {
+      assert(i+1 < argc);
+      int value = atoi(argv[++i]);
+      if (value <= 0) {
+        fprintf(stderr, "error: Invalid flag \"-cpusrun %d\" must be > 0\n", value);
+        abort();
+      }
+      nb_cores_run = value;
+    }
     else if (!strcmp(argv[i], "-exact")) {
       exact_instance = true;
     }
@@ -786,6 +795,7 @@ void update_mappers(Machine machine, Runtime *runtime,
 
 int main(int argc, char **argv)
 {
+  
   Runtime::set_top_level_task_id(TID_TOP);
 
   {

@@ -78,6 +78,7 @@ struct App {
   bool enable_graph_validation;
   int nb_cores;
   int nb_nodes;
+  int nb_cores_run;
   double task_exec_time;
   double total_exec_time;
 
